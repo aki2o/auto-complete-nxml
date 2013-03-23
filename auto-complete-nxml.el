@@ -4,7 +4,8 @@
 
 ;; Author: Hiroaki Otsu <ootsuhiroaki@gmail.com>
 ;; Keywords: completion, html, xml
-;; Version: 0.1
+;; URL: https://github.com/aki2o/auto-complete-nxml
+;; Version: 0.2
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -22,6 +23,7 @@
 ;;; Commentary:
 ;; 
 ;; This extension provides completion by auto-complete.el on nXML-mode.
+;; About auto-complete.el, see <https://github.com/auto-complete/auto-complete>.
 
 ;;; Dependency:
 ;; 
@@ -62,6 +64,7 @@
 (require 'rng-nxml)
 (require 'auto-complete)
 (require 'auto-complete-config)
+(require 'anything-project nil t)
 
 (defvar auto-complete-nxml-regexp-jump-current-tag-start (rx-to-string `(and (group (or "<" ">")) (+ (not (any ">"))))))
 (defun auto-complete-nxml-point-inside-tag-p ()
@@ -93,7 +96,6 @@
   (ignore-errors
     (save-excursion
       (when (and (not (re-search-backward auto-complete-nxml-regexp-point-tagnm nil t))
-                 (auto-complete-nxml-point-inside-tag-p)
                  (auto-complete-nxml-update-current-attr)
                  (string= auto-complete-nxml-buffer-current-attr "style"))
         (cond ((re-search-backward auto-complete-nxml-regexp-point-cssprop nil t)
@@ -102,13 +104,73 @@
               (t
                (ac-css-property-candidates)))))))
 
+(defun auto-complete-nxml-get-project-ident (&optional projid)
+  (or projid
+      (and (featurep 'anything-project)
+           (functionp 'ap:get-root-directory)
+           (ap:get-root-directory))
+      "default"))
+
+(defvar auto-complete-nxml-tag-value-words-hash (make-hash-table :test 'equal))
+(defun auto-complete-nxml-get-project-tag-value-words (&optional projid)
+  (gethash (auto-complete-nxml-get-project-ident projid) auto-complete-nxml-tag-value-words-hash))
+(defun auto-complete-nxml-put-project-tag-value-words (words &optional projid)
+  (puthash (auto-complete-nxml-get-project-ident projid) words auto-complete-nxml-tag-value-words-hash))
+
+(defvar auto-complete-nxml-attr-words-hash-hash (make-hash-table :test 'equal))
+(defun auto-complete-nxml-get-project-attr-words-hash (&optional projid)
+  (gethash (auto-complete-nxml-get-project-ident projid) auto-complete-nxml-attr-words-hash-hash))
+(defun auto-complete-nxml-put-project-attr-words-hash (words-hash &optional projid)
+  (puthash (auto-complete-nxml-get-project-ident projid) words-hash auto-complete-nxml-attr-words-hash-hash))
+
+(defvar auto-complete-nxml-regexp-tag-value (rx-to-string `(and ">" (group (+ (not (any "<")))) "<")))
+(defun auto-complete-nxml-update-tag-value-words (&optional projid)
+  (save-excursion
+    (loop initially (goto-char (point-min))
+          with words = (auto-complete-nxml-get-project-tag-value-words projid)
+          while (re-search-forward auto-complete-nxml-regexp-tag-value nil t)
+          for text = (match-string-no-properties 1)
+          do (loop for w in (split-string text "\\(?:^\\|\\_>\\).*?\\(?:\\_<\\|$\\)")
+                   if (not (string= w ac-prefix))
+                   do (add-to-list 'words w))
+          finally (auto-complete-nxml-put-project-tag-value-words words projid))))
+
 (defun auto-complete-nxml-get-tag-value-candidates ()
   (ignore-errors
-    (save-excursion
-      (when (not (auto-complete-nxml-point-inside-tag-p))
-        (ac-update-word-index)
-        (ac-word-candidates (lambda (buffer)
-                              (derived-mode-p (buffer-local-value 'major-mode buffer))))))))
+    (when (not (auto-complete-nxml-point-inside-tag-p))
+      (auto-complete-nxml-update-tag-value-words)
+      (auto-complete-nxml-get-project-tag-value-words))))
+
+(defvar auto-complete-nxml-regexp-attr (rx-to-string `(and (group (+ (any "a-zA-Z0-9-"))) "="
+                                                           (or "\"" "'") (group (+ (not (any "\"" "'")))) (or "\"" "'"))))
+(defun auto-complete-nxml-update-attr-words (&optional projid)
+  (save-excursion
+    (loop initially (goto-char (point-min))
+          with words-hash = (or (auto-complete-nxml-get-project-attr-words-hash projid)
+                                (make-hash-table :test 'equal))
+          while (re-search-forward auto-complete-nxml-regexp-attr nil t)
+          for attrnm = (match-string-no-properties 1)
+          for attrvalue = (match-string-no-properties 2)
+          if (and (auto-complete-nxml-point-inside-tag-p)
+                  (not (string= attrnm "style"))
+                  (not (string= attrnm "id")))
+          do (let* ((words (gethash attrnm words-hash)))
+               (loop for w in (split-string attrvalue)
+                     if (not (string= w ac-prefix))
+                     do (add-to-list 'words w))
+               (puthash attrnm words words-hash))
+          finally (auto-complete-nxml-put-project-attr-words-hash words-hash projid))))
+
+(defun auto-complete-nxml-get-attr-value-candidates ()
+  (ignore-errors
+    (or (auto-complete-nxml-get-candidates)
+        (progn (auto-complete-nxml-update-current-attr)
+               (let* ((attrnm auto-complete-nxml-buffer-current-attr))
+                 (when (and (not (string= attrnm ""))
+                            (not (string= attrnm "style"))
+                            (not (string= attrnm "id")))
+                   (auto-complete-nxml-update-attr-words)
+                   (gethash attrnm (auto-complete-nxml-get-project-attr-words-hash))))))))
 
 (defvar auto-complete-nxml-candidates nil)
 (defun auto-complete-nxml-get-candidates ()
@@ -149,7 +211,6 @@
 (defun auto-complete-nxml-expand-other-xmlns ()
   (when (save-excursion
           (re-search-backward auto-complete-nxml-regexp-point-expand-xmlns nil t))
-    (insert (match-string-no-properties 1))
     (let* ((defns (concat ":" (match-string-no-properties 2))))
       (loop for nssym in (rng-match-possible-namespace-uris)
             for ns = (symbol-name nssym)
@@ -200,10 +261,14 @@
     (limit . nil)
     (action . (lambda ()
                 (insert "=\"")
+                (when (string= (format "%c" (char-after)) "\"")
+                  (delete-char 1))
+                (insert "\"")
+                (backward-char)
                 (auto-complete)))))
 
 (defvar ac-source-nxml-attr-value
-  '((candidates . auto-complete-nxml-get-candidates)
+  '((candidates . auto-complete-nxml-get-attr-value-candidates)
     (prefix . "=\\(?:\"\\|'\\)\\s-*\\([^\"':; ]*\\)")
     (symbol . "v")
     (requires . 0)
@@ -235,7 +300,6 @@
 
 (defvar ac-source-nxml-tag-value
   '((candidates . auto-complete-nxml-get-tag-value-candidates)
-    (prefix . ">\\s-*\\([^<]*\\)")
     (symbol . "w")
     (cache)))
 
@@ -244,6 +308,21 @@
   (interactive "p")
   (self-insert-command n)
   (ac-trigger-key-command n))
+
+(defun auto-complete-nxml-init-project ()
+  (when (and (featurep 'anything-project)
+             (functionp 'ap:get-project-files)
+             (functionp 'ap:expand-file)
+             (not (auto-complete-nxml-get-project-attr-words-hash)))
+    (loop with projid = (auto-complete-nxml-get-project-ident)
+          for f in (ap:get-project-files)
+          for f = (ap:expand-file f)
+          for mode = (assoc-default f auto-mode-alist 'string-match)
+          if (eq mode 'nxml-mode)
+          do (with-temp-buffer
+               (insert-file-contents f nil)
+               (auto-complete-nxml-update-tag-value-words projid)
+               (auto-complete-nxml-update-attr-words projid)))))
 
 (defun auto-complete-nxml-setup ()
   (local-set-key (kbd "SPC") 'auto-complete-nxml-insert-with-ac-trigger-command)
@@ -254,7 +333,8 @@
                      ac-source-nxml-css-property
                      ac-source-nxml-tag-value))
   (add-to-list 'ac-modes 'nxml-mode)
-  (auto-complete-mode))
+  (auto-complete-mode)
+  (auto-complete-nxml-init-project))
 
 (add-hook 'nxml-mode-hook 'auto-complete-nxml-setup t)
 
