@@ -211,6 +211,10 @@
 (defun auto-complete-nxml-expand-other-xmlns ()
   (when (save-excursion
           (re-search-backward auto-complete-nxml-regexp-point-expand-xmlns nil t))
+    (when (and (not (= (point) (point-max)))
+               (string= (format "%c" (char-after)) "\""))
+      (delete-char 1))
+    (insert "\"")
     (let* ((defns (concat ":" (match-string-no-properties 2))))
       (loop for nssym in (rng-match-possible-namespace-uris)
             for ns = (symbol-name nssym)
@@ -232,7 +236,8 @@
                                                                      (assq 'prefix (cdr rule)))
                                                     if prefcons return (cdr prefcons)
                                                     finally return nil)))
-            if prefix
+            if (and prefix
+                    (not (string= prefix "")))
             do (progn (cond (indent-tabs-mode
                              (insert "\n")
                              (indent-for-tab-command))
@@ -261,7 +266,8 @@
     (limit . nil)
     (action . (lambda ()
                 (insert "=\"")
-                (when (string= (format "%c" (char-after)) "\"")
+                (when (and (not (= (point) (point-max)))
+                           (string= (format "%c" (char-after)) "\""))
                   (delete-char 1))
                 (insert "\"")
                 (backward-char)
