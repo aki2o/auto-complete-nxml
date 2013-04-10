@@ -71,7 +71,7 @@ So, when complete default namespace, complete all available namespaces.
 ### Popup help of element and attribute
 
 When complete element and attribute, popup help about them beside displayed candidates.  
-And when you keystroke the bound key for popup help, popup help abount pointed.  
+And when you keystroke the bound key for popup help, popup help about pointed.  
 Abount binding the key for popup help, see Configure section below.
 
 Install
