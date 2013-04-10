@@ -62,13 +62,24 @@ For example, if you wrote the following,
 the defined in "http://www.w3.org/TR/xhtml1" are displayed without prefix,  
 the defined in "http://www.w3.org/1998/Math/MathML" are displayed with "math:".  
 
+But when complete "xmlns" attribute,   
+nXML-mode don't complete namespace other than the default even if they exists in used schema.  
+In this case, you have to know which available namespace is.  
+Then, it is too much trouble.  
+So, when complete default namespace, complete all available namespaces.
+
+### Popup help of element and attribute
+
+When complete element and attribute, popup help about them beside displayed candidates.
+And when you keystroke the bound key for popup help, popup help abount pointed.
+Abount binding the key for popup help, see Configure section below.
 
 Install
 =======
 
-You can install the following way.
+You can install by the following way.
 
-### If auto-install.el is avaiable
+### By auto-install
 
 eval the following sexp.
 
@@ -82,6 +93,9 @@ Configure
 =========
 
     (require 'auto-complete-nxml)
+
+    ;; for popup help at point
+    (setq auto-complete-nxml-popup-help-key "C-:")
 
 
 Enjoy!!!
