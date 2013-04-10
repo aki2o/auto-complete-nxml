@@ -39,7 +39,8 @@
 
 ;;; Customization:
 ;; 
-;; Nothing.
+;; - You can custom keystroke for popup help of element or attribute. 
+;;   (setq auto-complete-nxml-popup-help-key "C-:")
 
 ;;; API:
 ;; 
@@ -54,7 +55,7 @@
 ;; - auto-complete-config.el ... Version 1.4
 
 
-;; Enjoy!
+;; Enjoy!!!
 
 
 (eval-when-compile (require 'cl))
@@ -66,6 +67,18 @@
 (require 'auto-complete)
 (require 'auto-complete-config)
 (require 'anything-project nil t)
+(require 'thingatpt)
+
+
+(defgroup auto-complete-nxml nil
+  "Auto completion for nXML-mode."
+  :group 'completion
+  :prefix "auto-complete-nxml-")
+
+(defcustom auto-complete-nxml-popup-help-key nil
+  "Keystroke for popup help at point"
+  :type 'string
+  :group 'auto-complete-nxml)
 
 
 (defadvice rng-set-document-type-and-validate (around make-doc4ac-in-nxml activate)
@@ -419,15 +432,17 @@
 
 (defun auto-complete-nxml-get-document-selected (selected stored-hash typenm)
   (ignore-errors
-    (when (stringp selected)
+    (if (not (stringp selected))
+        ""
       (set-text-properties 0 (string-width selected) nil selected)
       (with-temp-buffer
         (let* ((standard-output (current-buffer))
                (currnm selected)
                (prefix (when (string-match ":" selected)
                          (let* ((e (split-string selected ":")))
-                           (setq currnm (cdr e))
-                           (car e))))
+                           (when (= (length e) 2)
+                             (setq currnm (nth 1 e))
+                             (nth 0 e)))))
                (nssym (cond ((and (stringp prefix)
                                   (not (string= prefix "")))
                              (nxml-ns-get-prefix prefix))
@@ -444,19 +459,68 @@
                (note (or (when (auto-complete-nxml-doc-p doc)
                            (auto-complete-nxml-doc-note doc))
                          "")))
-          (princ (format "'%s' is %s in '%s'.\n" currnm typenm ns))
-          (cond ((and (string= comment "")
-                      (string= note ""))
-                 (princ "\n")
-                 (princ "Not documented.\n"))
-                (t
-                 (when (not (string= comment ""))
+          (when (and (not (string= currnm ""))
+                     (not (string-match "^/" currnm)))
+            (princ (format "'%s' is %s in '%s'.\n" currnm typenm ns))
+            (cond ((and (string= comment "")
+                        (string= note ""))
                    (princ "\n")
-                   (princ (format "Comment: \n%s\n" comment)))
-                 (when (not (string= note ""))
-                   (princ "\n")
-                   (princ (format "Note: \n%s\n" note)))))
+                   (princ "Not documented.\n"))
+                  (t
+                   (when (not (string= comment ""))
+                     (princ "\n")
+                     (princ (format "Comment: \n%s\n" comment)))
+                   (when (not (string= note ""))
+                     (princ "\n")
+                     (princ (format "Note: \n%s\n" note))))))
           (buffer-string))))))
+
+(defun auto-complete-nxml-get-current-context-symbol ()
+  (ignore-errors
+    (save-excursion
+      (cond ((re-search-backward auto-complete-nxml-regexp-point-tagnm nil t)
+             ;; point on tag
+             (setq auto-complete-nxml-buffer-current-tag
+                   (buffer-substring-no-properties (progn (forward-char 1)
+                                                          (point))
+                                                   (progn (re-search-forward "[ >]" nil t)
+                                                          (forward-char -1)
+                                                          (point))))
+             'tag)
+            ((auto-complete-nxml-point-inside-tag-p)
+             ;; point on inside tag
+             (auto-complete-nxml-update-current-tag)
+             (cond ((save-excursion
+                      (re-search-backward auto-complete-nxml-regexp-point-attrnm nil t))
+                    ;; point on attribute
+                    (setq auto-complete-nxml-buffer-current-attr
+                          (buffer-substring-no-properties (progn (re-search-backward "\\s-" nil t)
+                                                                 (forward-char 1)
+                                                                 (point))
+                                                          (progn (search-forward "=" nil t)
+                                                                 (forward-char -1)
+                                                                 (point))))
+                    'attr)
+                   ((and (auto-complete-nxml-update-current-attr)
+                         (not (string= auto-complete-nxml-buffer-current-attr "")))
+                    ;; point on value of attribute
+                    (cond ((string= auto-complete-nxml-buffer-current-attr "style")
+                           (cond ((re-search-backward auto-complete-nxml-regexp-point-cssprop nil t)
+                                  'cssprop)
+                                 (t
+                                  'csspropvalue)))
+                          (t
+                           'attrvalue)))
+                   (t
+                    'otherwise)))
+            (t
+             ;; point on outside tag
+             (cond ((and (auto-complete-nxml-update-current-tag)
+                         (not (string= auto-complete-nxml-buffer-current-tag "")))
+                    'content)
+                   (t
+                    'otherwise)))))))
+
 
 (defvar auto-complete-nxml-regexp-point-endtag (rx-to-string `(and "</" (+ (not (any space))) point)))
 (defvar ac-source-nxml-tag
@@ -465,7 +529,7 @@
     (symbol . "t")
     (document . auto-complete-nxml-get-document-tag)
     (requires . 0)
-    ;; (cache)
+    (cache)
     (limit . 500)
     (action . (lambda ()
                 (auto-complete-nxml-expand-tag)
@@ -481,7 +545,7 @@
     (symbol . "a")
     (document . auto-complete-nxml-get-document-attr)
     (requires . 0)
-    ;; (cache)
+    (cache)
     (limit . 500)
     (action . (lambda ()
                 (insert "=\"")
@@ -497,7 +561,7 @@
     (prefix . "=\\(?:\"\\|'\\)\\s-*\\([^\"':; ]*\\)")
     (symbol . "v")
     (requires . 0)
-    ;; (cache)
+    (cache)
     (limit . 500)
     (action . (lambda ()
                 (auto-complete-nxml-expand-other-xmlns)))))
@@ -507,7 +571,7 @@
     (prefix . "\\s-+style=\\(?:\"\\|'\\)\\([^\"']*\\)")
     (symbol . "c")
     (requires . 0)
-    ;; (cache)
+    (cache)
     (limit . 500)
     (action . (lambda ()
                 (insert ": ")
@@ -518,7 +582,7 @@
     (prefix . ac-css-prefix)
     (symbol . "p")
     (requires . 0)
-    ;; (cache)
+    (cache)
     (limit . 500)
     (action . (lambda ()
                 (insert ";")))))
@@ -554,11 +618,6 @@
     (limit . 500)))
 
 
-(defun auto-complete-nxml-insert-with-ac-trigger-command (n)
-  (interactive "p")
-  (self-insert-command n)
-  (ac-trigger-key-command n))
-
 (defun auto-complete-nxml-init-project ()
   (when (and (featurep 'anything-project)
              (functionp 'ap:get-project-files)
@@ -576,6 +635,10 @@
 
 (defun auto-complete-nxml-setup ()
   (local-set-key (kbd "SPC") 'auto-complete-nxml-insert-with-ac-trigger-command)
+  (when (and (stringp auto-complete-nxml-popup-help-key)
+             (not (string= auto-complete-nxml-popup-help-key "")))
+    (local-set-key (read-kbd-macro auto-complete-nxml-popup-help-key)
+                   'auto-complete-nxml-popup-help))
   (setq ac-sources '(ac-source-nxml-tag
                      ac-source-nxml-attr
                      ac-source-nxml-attr-value
@@ -588,6 +651,23 @@
   (auto-complete-nxml-init-project))
 
 (add-hook 'nxml-mode-hook 'auto-complete-nxml-setup t)
+
+
+(defun auto-complete-nxml-insert-with-ac-trigger-command (n)
+  (interactive "p")
+  (self-insert-command n)
+  (ac-trigger-key-command n))
+
+(defun auto-complete-nxml-popup-help ()
+  (interactive)
+  (let* ((ctx (auto-complete-nxml-get-current-context-symbol)))
+    (case ctx
+      (tag (popup-tip (auto-complete-nxml-get-document-selected auto-complete-nxml-buffer-current-tag
+                                                                auto-complete-nxml-element-document-hash
+                                                                "ELEMENT")))
+      (attr (popup-tip (auto-complete-nxml-get-document-selected auto-complete-nxml-buffer-current-attr
+                                                                 auto-complete-nxml-attribute-document-hash
+                                                                 "ATTRIBUTE"))))))
 
 
 (provide 'auto-complete-nxml)
