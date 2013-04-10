@@ -5,7 +5,7 @@
 ;; Author: Hiroaki Otsu <ootsuhiroaki@gmail.com>
 ;; Keywords: completion, html, xml
 ;; URL: https://github.com/aki2o/auto-complete-nxml
-;; Version: 0.2
+;; Version: 0.3
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -62,15 +62,166 @@
 (require 'regexp-opt)
 (require 'nxml-util)
 (require 'rng-nxml)
+(require 'rng-loc)
 (require 'auto-complete)
 (require 'auto-complete-config)
 (require 'anything-project nil t)
 
-(defvar auto-complete-nxml-regexp-jump-current-tag-start (rx-to-string `(and (group (or "<" ">")) (+ (not (any ">"))))))
+
+(defadvice rng-set-document-type-and-validate (around make-doc4ac-in-nxml activate)
+  (let* ((startp (auto-complete-nxml-start-make-doc4ac-in-nxml)))
+    (when startp
+      (auto-complete-nxml-enable-make-doc4ac-in-nxml))
+    ad-do-it
+    (when startp
+      (auto-complete-nxml-disable-make-doc4ac-in-nxml))))
+
+(defvar auto-complete-nxml-note-stored-index 0)
+(defvar auto-complete-nxml-note-store-hash (make-hash-table))
+(defvar auto-complete-nxml-ncls-stored-index 0)
+(defvar auto-complete-nxml-ncls-store-hash (make-hash-table))
+(defvar auto-complete-nxml-element-document-hash (make-hash-table :test 'equal))
+(defvar auto-complete-nxml-attribute-document-hash (make-hash-table :test 'equal))
+(defstruct auto-complete-nxml-doc name ns comment note)
+(defun auto-complete-nxml-start-make-doc4ac-in-nxml ()
+  (setq auto-complete-nxml-note-stored-index 0)
+  (setq auto-complete-nxml-note-store-hash (make-hash-table))
+  (setq auto-complete-nxml-ncls-stored-index 0)
+  (setq auto-complete-nxml-ncls-store-hash (make-hash-table))
+  (setq auto-complete-nxml-element-document-hash (make-hash-table :test 'equal))
+  (setq auto-complete-nxml-attribute-document-hash (make-hash-table :test 'equal))
+  t)
+
+(defun auto-complete-nxml-enable-make-doc4ac-in-nxml ()
+  (ad-enable-regexp (format "\\`%s\\'" 'auto-complete-nxml-ad-make-doc))
+  (auto-complete-nxml-ad-activate))
+
+(defun auto-complete-nxml-disable-make-doc4ac-in-nxml ()
+  (ad-disable-regexp (format "\\`%s\\'" 'auto-complete-nxml-ad-make-doc))
+  (auto-complete-nxml-ad-activate))
+
+(defun auto-complete-nxml-ad-activate ()
+  (loop for s in '(rng-c-parse-element
+                   rng-c-parse-attribute
+                   rng-c-parse-name-class
+                   forward-comment
+                   rng-c-parse-follow-annotations)
+        do (ad-activate s)))
+
+(defun auto-complete-nxml-get-note-stored-index ()
+  (incf auto-complete-nxml-note-stored-index))
+(defun auto-complete-nxml-get-stored-note (idx)
+  (gethash idx auto-complete-nxml-note-store-hash))
+(defun auto-complete-nxml-store-note (note)
+  (let* ((currnote (gethash auto-complete-nxml-note-stored-index auto-complete-nxml-note-store-hash))
+         (newnote (cond (currnote (concat currnote "\n" note))
+                        (t        note))))
+    (puthash auto-complete-nxml-note-stored-index newnote auto-complete-nxml-note-store-hash)))
+
+(defun auto-complete-nxml-get-ncls-stored-index ()
+  (incf auto-complete-nxml-ncls-stored-index))
+(defun auto-complete-nxml-get-stored-ncls (idx)
+  (gethash idx auto-complete-nxml-ncls-store-hash))
+(defun auto-complete-nxml-store-ncls (ncls)
+  (puthash auto-complete-nxml-ncls-stored-index ncls auto-complete-nxml-ncls-store-hash))
+
+(defadvice rng-c-parse-element (around auto-complete-nxml-ad-make-doc disable)
+  (let* ((nclsidx (auto-complete-nxml-get-ncls-stored-index))
+         (noteidx (auto-complete-nxml-get-note-stored-index))
+         (comment auto-complete-nxml-current-schema-comment))
+    (setq auto-complete-nxml-current-schema-comment "")
+    ad-do-it
+    (auto-complete-nxml-make-document nclsidx noteidx comment auto-complete-nxml-element-document-hash)))
+
+(defadvice rng-c-parse-attribute (around auto-complete-nxml-ad-make-doc disable)
+  (let* ((nclsidx (auto-complete-nxml-get-ncls-stored-index))
+         (noteidx (auto-complete-nxml-get-note-stored-index))
+         (comment auto-complete-nxml-current-schema-comment))
+    (setq auto-complete-nxml-current-schema-comment "")
+    ad-do-it
+    (auto-complete-nxml-make-document nclsidx noteidx comment auto-complete-nxml-attribute-document-hash)))
+
+(defun auto-complete-nxml-make-document (nclsidx noteidx comment hash)
+  (let* ((name-class (auto-complete-nxml-get-stored-ncls nclsidx))
+         (typesym (when name-class (pop name-class)))
+         (typecons (when (listp name-class) (pop name-class)))
+         (nssym (when typecons (car typecons)))
+         (ns (or (when nssym (nxml-namespace-name nssym))
+                 ""))
+         (currnm (or (when typecons (cdr typecons))
+                     ""))
+         (key (cond ((and (not (string= ns ""))
+                          (not (string= currnm "")))
+                     (concat ns ":" currnm))
+                    ((not (string= currnm ""))
+                     currnm)))
+         (note (or (auto-complete-nxml-get-stored-note noteidx)
+                   ""))
+         (doc (when (stringp key)
+                (make-auto-complete-nxml-doc :name currnm :ns ns :comment comment :note note))))
+    (when (auto-complete-nxml-doc-p doc)
+      (puthash key doc hash))))
+
+(defadvice rng-c-parse-name-class (after auto-complete-nxml-ad-make-doc disable)
+  (auto-complete-nxml-store-ncls ad-return-value))
+
+(defvar auto-complete-nxml-current-schema-comment "")
+(defadvice forward-comment (around auto-complete-nxml-ad-make-doc disable)
+  (let* ((startpt (point)))
+    ad-do-it
+    (let* ((text (buffer-substring-no-properties startpt (point)))
+           (text (replace-regexp-in-string "^\\s-+" "" text))
+           (text (replace-regexp-in-string "\\s-+$" "" text))
+           (text (replace-regexp-in-string "^#+" "" text))
+           (text (replace-regexp-in-string "^\\s-+" "" text))
+           (text (replace-regexp-in-string "[\r\n]+" "\n" text))
+           (text (replace-regexp-in-string "\\`[\r\n]+" "" text))
+           (text (replace-regexp-in-string "[\r\n]+\\'" "" text))
+           (curr auto-complete-nxml-current-schema-comment))
+      (when (not (string= text ""))
+        (setq auto-complete-nxml-current-schema-comment (cond ((not (string= curr "")) (concat curr "\n" text))
+                                                              (t                       text)))))))
+
+(defvar auto-complete-nxml-regexp-rnc-annotation (rx-to-string `(and bos (* space) "a:documentation" (+ space) "[" )))
+(defadvice rng-c-parse-follow-annotations (around auto-complete-nxml-ad-make-doc disable)
+  (let* ((startpt (point)))
+    ad-do-it
+    (let* ((text (buffer-substring-no-properties startpt (point)))
+           (text (replace-regexp-in-string "\\`\\s-*a:documentation\\s-+\\[\\s-*" "" text))
+           (note ""))
+      (loop for line in (split-string text "\r?\n")
+            for line = (replace-regexp-in-string "^\\s-+" "" line)
+            if (string-match "^\"" line)
+            do (let* ((line (replace-regexp-in-string "^\"" "" line))
+                      (line (replace-regexp-in-string "\"\\s-*~?\\s-*$" "" line))
+                      (line (replace-regexp-in-string ".$" "" line)) ;delete  
+                      (line (replace-regexp-in-string "^\\s-+" "" line))
+                      (line (replace-regexp-in-string "\\s-+$" "" line)))
+                 (when (not (string= line ""))
+                   (when (not (string= note ""))
+                     (setq note (concat note "\n")))
+                   (setq note (concat note line)))))
+      (when (not (string= note ""))
+        (auto-complete-nxml-store-note note)))))
+
+
+(defvar auto-complete-nxml-regexp-jump-current-tag-start (rx-to-string `(and (group (or "<" ">")) (* (not (any ">"))))))
 (defun auto-complete-nxml-point-inside-tag-p ()
   (save-excursion
     (and (re-search-backward auto-complete-nxml-regexp-jump-current-tag-start nil t)
          (string= (match-string-no-properties 1) "<"))))
+
+(defvar auto-complete-nxml-buffer-current-tag nil)
+(make-variable-buffer-local 'auto-complete-nxml-buffer-current-tag)
+(defun auto-complete-nxml-update-current-tag ()
+  (save-excursion
+    (let* ((tagnm ""))
+      (when (re-search-backward "<[^/]" nil t)
+        (forward-char)
+        (let* ((start (point)))
+          (skip-syntax-forward "w")
+          (setq tagnm (buffer-substring-no-properties start (point)))))
+      (setq auto-complete-nxml-buffer-current-tag tagnm))))
 
 (defvar auto-complete-nxml-regexp-point-inside-attr (rx-to-string `(and (+ space) (group (+ (not (any space)))) "=" (or "\"" "'")
                                                        (* (not (any "\"" "'"))) point)))
@@ -135,11 +286,18 @@
                    do (add-to-list 'words w))
           finally (auto-complete-nxml-put-project-tag-value-words words projid))))
 
-(defun auto-complete-nxml-get-tag-value-candidates ()
+(defun auto-complete-nxml-get-tag-value-candidates-by-myself ()
   (ignore-errors
     (when (not (auto-complete-nxml-point-inside-tag-p))
       (auto-complete-nxml-update-tag-value-words)
       (auto-complete-nxml-get-project-tag-value-words))))
+
+(defun auto-complete-nxml-get-tag-value-candidates-by-nxml ()
+  (ignore-errors
+    (when (not (auto-complete-nxml-point-inside-tag-p))
+      (rng-match-save
+        (rng-set-state-after)
+        (rng-match-possible-value-strings)))))
 
 (defvar auto-complete-nxml-regexp-attr (rx-to-string `(and (group (+ (any "a-zA-Z0-9-"))) "="
                                                            (or "\"" "'") (group (+ (not (any "\"" "'")))) (or "\"" "'"))))
@@ -185,7 +343,10 @@
                                                            collect (car e)))))
                                         nil)))
       (ignore-errors (rng-complete))
-      auto-complete-nxml-candidates)))
+      (loop with h = (make-hash-table :test 'equal)
+            for c in auto-complete-nxml-candidates
+            if (not (gethash c h))
+            collect (puthash c c h)))))
 
 (defun auto-complete-nxml-expand-tag ()
   (let* ((currpt (point))
@@ -215,27 +376,11 @@
                (string= (format "%c" (char-after)) "\""))
       (delete-char 1))
     (insert "\"")
-    (let* ((defns (concat ":" (match-string-no-properties 2))))
+    (let* ((defns (match-string-no-properties 2)))
       (loop for nssym in (rng-match-possible-namespace-uris)
-            for ns = (symbol-name nssym)
+            for ns = (nxml-namespace-name nssym)
             for prefix = (when (not (string= ns defns))
-                           (loop for f in rng-schema-locating-files
-                                 for id = (loop for rule in (rng-get-parsed-schema-locating-file f)
-                                                for nscons = (when (eq (car rule) 'namespace)
-                                                               (assq 'ns (cdr rule)))
-                                                for idcons = (when (and nscons
-                                                                        (string= (concat ":" (cdr nscons)) ns))
-                                                               (assq 'typeId (cdr rule)))
-                                                if idcons return (cdr idcons)
-                                                finally return nil)
-                                 if id return (loop for rule in (rng-get-parsed-schema-locating-file f)
-                                                    for idcons = (when (eq (car rule) 'documentElement)
-                                                                   (assq 'typeId (cdr rule)))
-                                                    for prefcons = (when (and idcons
-                                                                              (string= (cdr idcons) id))
-                                                                     (assq 'prefix (cdr rule)))
-                                                    if prefcons return (cdr prefcons)
-                                                    finally return nil)))
+                           (auto-complete-nxml-get-prefix ns))
             if (and prefix
                     (not (string= prefix "")))
             do (progn (cond (indent-tabs-mode
@@ -243,27 +388,101 @@
                              (indent-for-tab-command))
                             (t
                              (insert " ")))
-                      (insert (format "xmlns:%s=\"%s\"" prefix (substring ns 1))))))))
+                      (insert (format "xmlns:%s=\"%s\"" prefix ns)))))))
 
+(defun auto-complete-nxml-get-prefix (ns)
+  (loop for f in rng-schema-locating-files
+        for id = (loop for rule in (rng-get-parsed-schema-locating-file f)
+                       for nscons = (when (eq (car rule) 'namespace)
+                                      (assq 'ns (cdr rule)))
+                       for idcons = (when (and nscons
+                                               (string= (cdr nscons) ns))
+                                      (assq 'typeId (cdr rule)))
+                       if idcons return (cdr idcons)
+                       finally return nil)
+        if id
+        return (loop for rule in (rng-get-parsed-schema-locating-file f)
+                     for idcons = (when (eq (car rule) 'documentElement)
+                                    (assq 'typeId (cdr rule)))
+                     for prefcons = (when (and idcons
+                                               (string= (cdr idcons) id))
+                                      (assq 'prefix (cdr rule)))
+                     if prefcons return (cdr prefcons)
+                     finally return nil)
+        finally return nil))
 
+(defun auto-complete-nxml-get-document-tag (selected)
+  (auto-complete-nxml-get-document-selected selected auto-complete-nxml-element-document-hash "ELEMENT"))
+
+(defun auto-complete-nxml-get-document-attr (selected)
+  (auto-complete-nxml-get-document-selected selected auto-complete-nxml-attribute-document-hash "ATTRIBUTE"))
+
+(defun auto-complete-nxml-get-document-selected (selected stored-hash typenm)
+  (ignore-errors
+    (when (stringp selected)
+      (set-text-properties 0 (string-width selected) nil selected)
+      (with-temp-buffer
+        (let* ((standard-output (current-buffer))
+               (currnm selected)
+               (prefix (when (string-match ":" selected)
+                         (let* ((e (split-string selected ":")))
+                           (setq currnm (cdr e))
+                           (car e))))
+               (nssym (cond ((and (stringp prefix)
+                                  (not (string= prefix "")))
+                             (nxml-ns-get-prefix prefix))
+                            (t
+                             (nxml-ns-get-default))))
+               (ns (or (when nssym (nxml-namespace-name nssym))
+                       ""))
+               (key (cond ((not (string= ns "")) (concat ns ":" currnm))
+                          (t                     currnm)))
+               (doc (when (stringp key) (gethash key stored-hash)))
+               (comment (or (when (auto-complete-nxml-doc-p doc)
+                              (auto-complete-nxml-doc-comment doc))
+                            ""))
+               (note (or (when (auto-complete-nxml-doc-p doc)
+                           (auto-complete-nxml-doc-note doc))
+                         "")))
+          (princ (format "'%s' is %s in '%s'.\n" currnm typenm ns))
+          (cond ((and (string= comment "")
+                      (string= note ""))
+                 (princ "\n")
+                 (princ "Not documented.\n"))
+                (t
+                 (when (not (string= comment ""))
+                   (princ "\n")
+                   (princ (format "Comment: \n%s\n" comment)))
+                 (when (not (string= note ""))
+                   (princ "\n")
+                   (princ (format "Note: \n%s\n" note)))))
+          (buffer-string))))))
+
+(defvar auto-complete-nxml-regexp-point-endtag (rx-to-string `(and "</" (+ (not (any space))) point)))
 (defvar ac-source-nxml-tag
   '((candidates . auto-complete-nxml-get-candidates)
     (prefix . "<\\([a-zA-Z0-9:-]*\\)")
     (symbol . "t")
     (document . auto-complete-nxml-get-document-tag)
     (requires . 0)
-    (cache)
-    (limit . nil)
+    ;; (cache)
+    (limit . 500)
     (action . (lambda ()
-                (auto-complete-nxml-expand-tag)))))
+                (auto-complete-nxml-expand-tag)
+                (when (or (= (point) (point-max))
+                          (not (string= (format "%c" (char-after)) ">")))
+                  (when (save-excursion
+                          (re-search-backward auto-complete-nxml-regexp-point-endtag nil t))
+                    (insert ">")))))))
 
 (defvar ac-source-nxml-attr
   '((candidates . auto-complete-nxml-get-candidates)
     (prefix . "\\(?:<[a-zA-Z0-9:-]+\\|[^=]\"\\|[^=]'\\)\\s-+\\([a-zA-Z0-9-]*\\)")
     (symbol . "a")
+    (document . auto-complete-nxml-get-document-attr)
     (requires . 0)
-    (cache)
-    (limit . nil)
+    ;; (cache)
+    (limit . 500)
     (action . (lambda ()
                 (insert "=\"")
                 (when (and (not (= (point) (point-max)))
@@ -278,8 +497,8 @@
     (prefix . "=\\(?:\"\\|'\\)\\s-*\\([^\"':; ]*\\)")
     (symbol . "v")
     (requires . 0)
-    (cache)
-    (limit . nil)
+    ;; (cache)
+    (limit . 500)
     (action . (lambda ()
                 (auto-complete-nxml-expand-other-xmlns)))))
 
@@ -288,8 +507,8 @@
     (prefix . "\\s-+style=\\(?:\"\\|'\\)\\([^\"']*\\)")
     (symbol . "c")
     (requires . 0)
-    (cache)
-    (limit . nil)
+    ;; (cache)
+    (limit . 500)
     (action . (lambda ()
                 (insert ": ")
                 (auto-complete '(ac-source-nxml-css-property))))))
@@ -299,15 +518,40 @@
     (prefix . ac-css-prefix)
     (symbol . "p")
     (requires . 0)
-    (cache)
-    (limit . nil)
+    ;; (cache)
+    (limit . 500)
     (action . (lambda ()
                 (insert ";")))))
 
-(defvar ac-source-nxml-tag-value
-  '((candidates . auto-complete-nxml-get-tag-value-candidates)
+(defvar ac-source-nxml-tag-value-by-nxml
+  '((candidates . auto-complete-nxml-get-tag-value-candidates-by-nxml)
+    (prefix . ">\\s-*\\([^<]*\\)")
     (symbol . "w")
-    (cache)))
+    (requires . 0)
+    (cache)
+    (limit . 500)
+    (action . (lambda ()
+                (let* ((startp (point))
+                       (tstartp (when (search-backward "<" nil t)
+                                  (forward-char 1)
+                                  (point)))
+                       (tagnm (and tstartp
+                                   (when (re-search-forward "[ >]" nil t)
+                                     (forward-char -1)
+                                     (buffer-substring-no-properties tstartp (point)))))
+                       (re (when tagnm
+                             (rx-to-string `(and point (* space) "</" ,tagnm ">")))))
+                  (goto-char startp)
+                  (when (and tagnm
+                             (save-excursion
+                               (not (re-search-forward re nil t))))
+                    (insert "</" tagnm ">")))))))
+
+(defvar ac-source-nxml-tag-value-by-myself
+  '((candidates . auto-complete-nxml-get-tag-value-candidates-by-myself)
+    (symbol . "w")
+    (cache)
+    (limit . 500)))
 
 
 (defun auto-complete-nxml-insert-with-ac-trigger-command (n)
@@ -337,7 +581,8 @@
                      ac-source-nxml-attr-value
                      ac-source-nxml-css
                      ac-source-nxml-css-property
-                     ac-source-nxml-tag-value))
+                     ac-source-nxml-tag-value-by-nxml
+                     ac-source-nxml-tag-value-by-myself))
   (add-to-list 'ac-modes 'nxml-mode)
   (auto-complete-mode)
   (auto-complete-nxml-init-project))
