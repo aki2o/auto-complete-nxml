@@ -70,8 +70,8 @@ So, when complete default namespace, complete all available namespaces.
 
 ### Popup help of element and attribute
 
-When complete element and attribute, popup help about them beside displayed candidates.
-And when you keystroke the bound key for popup help, popup help abount pointed.
+When complete element and attribute, popup help about them beside displayed candidates.  
+And when you keystroke the bound key for popup help, popup help abount pointed.  
 Abount binding the key for popup help, see Configure section below.
 
 Install
@@ -96,6 +96,12 @@ Configure
 
     ;; for popup help at point
     (setq auto-complete-nxml-popup-help-key "C-:")
+
+Tested On
+=========
+
+* Emacs ... GNU Emacs 23.3.1 (i386-mingw-nt5.1.2600) of 2011-08-15 on GNUPACK
+* auto-complete.el ... Version 1.4
 
 
 Enjoy!!!
