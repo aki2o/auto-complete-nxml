@@ -3,8 +3,15 @@ What's this?
 
 Extension of Emacs provides completion by auto-complete.el on nXML-mode.
 
-Screen shot
-===========
+Feature
+=======
+
+### Start completion automatically
+
+On nXML-mode, completion is started when you keystroke the bound key for starting completion defalut "C-RET".  
+I think this action is good when completion use default interface of Emacs.  
+But the interface of auto-complete.el is lighter than it.  
+So, start completion automatically according to the context as much as possible.
 
 When you are on nXML-mode, keystroke "<". Then ...
 
@@ -22,21 +29,12 @@ Subsequently, if you select "font-size" ...
 
 ![Demo4](demo4.png)
 
-Feature
-=======
-
-### Start completion automatically
-
-On nXML-mode, completion is started when you keystroke the bound key for starting completion defalut "C-RET".  
-I think this action is good when completion use default interface of Emacs.  
-But the interface of auto-complete.el is lighter than it.  
-So, start completion automatically according to the context as much as possible.
-
 ### CSS property and its value are available as the candidate
 
 nXML-mode can't complete CSS property and its value.  
 But their definition are in auto-complete.el.  
-So, CSS property and its value are available when completion of attribute value.
+So, CSS property and its value are available when completion of attribute value.  
+See above screenshot.
 
 ### Do completion when you are on the content of the element.
 
@@ -44,6 +42,8 @@ nXML-mode can't complete on the content of the element.
 But their definition exists in the used schema of RELAX NG and XML Schema.  
 So, when you are on the content of the element, do completion using them.  
 If it is not selective, do completion using the words in the nXML-mode buffers that you opened.
+
+![Demo5](demo_content.png)
 
 ### Completion of word using anything-project.el
 
@@ -66,7 +66,13 @@ But when complete "xmlns" attribute,
 nXML-mode don't complete namespace other than the default even if they exists in used schema.  
 In this case, you have to know which available namespace is.  
 Then, it is too much trouble.  
-So, when complete default namespace, complete all available namespaces.
+So, when complete default namespace, complete all available namespaces automatically.
+
+![Demo6](demo_xmlns1.png)
+
+If you select "xmlns" ...
+
+![Demo7](demo_xmlns2.png)
 
 ### Popup help of element and attribute
 
