@@ -1,7 +1,7 @@
 What's this?
 ============
 
-Extension of Emacs provides completion by auto-complete.el on nXML-mode.
+This is a extension of Emacs provides completion by auto-complete.el on nXML-mode.
 
 Feature
 =======
