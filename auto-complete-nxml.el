@@ -5,7 +5,7 @@
 ;; Author: Hiroaki Otsu <ootsuhiroaki@gmail.com>
 ;; Keywords: completion, html, xml
 ;; URL: https://github.com/aki2o/auto-complete-nxml
-;; Version: 0.3
+;; Version: 0.3.1
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -656,7 +656,7 @@
 (defun auto-complete-nxml-insert-with-ac-trigger-command (n)
   (interactive "p")
   (self-insert-command n)
-  (ac-trigger-key-command n))
+  (auto-complete-1 :triggered 'trigger-key))
 
 (defun auto-complete-nxml-popup-help ()
   (interactive)
