@@ -85,6 +85,10 @@ Install
 
 You can install by the following way.
 
+### By el-get
+
+2013/04/18 It's available. But, master branch only.  
+
 ### By auto-install
 
 eval the following sexp.
