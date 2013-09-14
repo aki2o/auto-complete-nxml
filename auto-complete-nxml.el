@@ -208,7 +208,7 @@
             if (string-match "^\"" line)
             do (let* ((line (replace-regexp-in-string "^\"" "" line))
                       (line (replace-regexp-in-string "\"\\s-*~?\\s-*$" "" line))
-                      (line (replace-regexp-in-string ".$" "" line)) ;delete
+                      (line (replace-regexp-in-string ".$" "" line)) ; delete special character at end of line
                       (line (replace-regexp-in-string "^\\s-+" "" line))
                       (line (replace-regexp-in-string "\\s-+$" "" line)))
                  (when (not (string= line ""))
