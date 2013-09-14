@@ -6,7 +6,7 @@
 ;; Keywords: completion, html, xml
 ;; URL: https://github.com/aki2o/auto-complete-nxml
 ;; Package-Requires: ((auto-complete "1.4"))
-;; Version: 0.3.1
+;; Version: 0.3.2
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -208,7 +208,7 @@
             if (string-match "^\"" line)
             do (let* ((line (replace-regexp-in-string "^\"" "" line))
                       (line (replace-regexp-in-string "\"\\s-*~?\\s-*$" "" line))
-                      (line (replace-regexp-in-string ".$" "" line)) ;delete 
+                      (line (replace-regexp-in-string ".$" "" line)) ;delete
                       (line (replace-regexp-in-string "^\\s-+" "" line))
                       (line (replace-regexp-in-string "\\s-+$" "" line)))
                  (when (not (string= line ""))
