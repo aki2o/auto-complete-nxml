@@ -3,6 +3,7 @@ What's this?
 
 This is a extension of Emacs provides completion by auto-complete.el on nXML-mode.
 
+
 Feature
 =======
 
@@ -56,8 +57,10 @@ So, if anything-project.el is available, do completion using the words in the pr
 nXML-mode can manage the namespace of the used schema.  
 For example, if you wrote the following,  
 
-    <html xmlns="http://www.w3.org/TR/xhtml1"
-          xmlns:math="http://www.w3.org/1998/Math/MathML">
+```html
+<html xmlns="http://www.w3.org/TR/xhtml1"
+      xmlns:math="http://www.w3.org/1998/Math/MathML">
+```
 
 the defined in "http://www.w3.org/TR/xhtml1" are displayed without prefix,  
 the defined in "http://www.w3.org/1998/Math/MathML" are displayed with "math:".  
@@ -80,32 +83,41 @@ When complete element and attribute, popup help about them beside displayed cand
 And when you keystroke the bound key for popup help, popup help about pointed.  
 Abount binding the key for popup help, see Configure section below.
 
+
 Install
 =======
 
 You can install by the following way.
 
-### By el-get
+### By package.el
+
+2013/09/15 It's available by using melpa.  
+
+### By el-get.el
 
 2013/04/18 It's available. But, master branch only.  
 
-### By auto-install
+### By auto-install.el
 
-eval the following sexp.
-
-    (auto-install-from-url "https://raw.github.com/aki2o/auto-complete-nxml/master/auto-complete-nxml.el")
+```lisp
+(auto-install-from-url "https://raw.github.com/aki2o/auto-complete-nxml/master/auto-complete-nxml.el")
+```
 
 ### Otherwise
 
 download "auto-complete-nxml.el" manually and put it in your load-path.
 
+
 Configure
 =========
 
-    (require 'auto-complete-nxml)
+```lisp
+(require 'auto-complete-nxml)
 
-    ;; for popup help at point
-    (setq auto-complete-nxml-popup-help-key "C-:")
+;; for popup help at point
+(setq auto-complete-nxml-popup-help-key "C-:")
+```
+
 
 Tested On
 =========
