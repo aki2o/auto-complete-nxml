@@ -6,7 +6,7 @@
 ;; Keywords: completion, html, xml
 ;; URL: https://github.com/aki2o/auto-complete-nxml
 ;; Package-Requires: ((auto-complete "1.4"))
-;; Version: 0.3.2
+;; Version: 0.4.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -38,15 +38,40 @@
 ;; 
 ;; (require 'auto-complete-nxml)
 
+;;; Configuration:
+;; 
+;; ;; Keystroke for popup help about something at point.
+;; (setq auto-complete-nxml-popup-help-key "C-:")
+;; 
+;; ;; Keystroke for toggle on/off automatic completion.
+;; (setq auto-complete-nxml-toggle-automatic-key "C-c C-t")
+;; 
+;; ;; If you want to start completion manually from the beginning
+;; (setq auto-complete-nxml-automatic-p nil)
+
 ;;; Customization:
 ;; 
-;; - You can custom keystroke for popup help of element or attribute. 
-;;   (setq auto-complete-nxml-popup-help-key "C-:")
+;; [EVAL] (autodoc-document-lisp-buffer :type 'user-variable :prefix "auto-complete-nxml-[^\-]" :docstring t)
+;; `auto-complete-nxml-popup-help-key'
+;; Keystroke for popup help about something at point.
+;; `auto-complete-nxml-toggle-automatic-key'
+;; Keystroke for toggle on/off automatic completion.
+;; `auto-complete-nxml-automatic-p'
+;; Whether start completion automatically.
+;; 
+;;  *** END auto-documentation
 
 ;;; API:
 ;; 
-;; Nothing.
+;; [EVAL] (autodoc-document-lisp-buffer :type 'command :prefix "auto-complete-nxml-[^\-]" :docstring t)
+;; `auto-complete-nxml-ac-start-with-insert'
+;; Not documented.
+;; `auto-complete-nxml-popup-help'
+;; Popup help about something at point.
+;; `auto-complete-nxml-toggle-automatic'
+;; Switch value of `auto-complete-nxml-automatic-p'.
 ;; 
+;;  *** END auto-documentation
 ;; [Note] Functions and variables other than listed above, Those specifications may be changed without notice.
 
 ;;; Tested On:
@@ -77,9 +102,24 @@
   :prefix "auto-complete-nxml-")
 
 (defcustom auto-complete-nxml-popup-help-key nil
-  "Keystroke for popup help at point"
+  "Keystroke for popup help about something at point."
   :type 'string
   :group 'auto-complete-nxml)
+
+(defcustom auto-complete-nxml-toggle-automatic-key nil
+  "Keystroke for toggle on/off automatic completion."
+  :type 'string
+  :group 'auto-complete-nxml)
+
+(defcustom auto-complete-nxml-automatic-p t
+  "Whether start completion automatically."
+  :type 'boolean
+  :group 'auto-complete-nxml)
+
+
+(defsubst auto-complete-nxml-start-completion-p ()
+  (or auto-complete-nxml-automatic-p
+      (eq this-command 'ac-trigger-key-command)))
 
 
 (defadvice rng-set-document-type-and-validate (around make-doc4ac-in-nxml activate)
@@ -260,7 +300,8 @@
 (defun auto-complete-nxml-get-css-candidates ()
   (ignore-errors
     (save-excursion
-      (when (and (not (re-search-backward auto-complete-nxml-regexp-point-tagnm nil t))
+      (when (and (auto-complete-nxml-start-completion-p)
+                 (not (re-search-backward auto-complete-nxml-regexp-point-tagnm nil t))
                  (auto-complete-nxml-update-current-attr)
                  (string= auto-complete-nxml-buffer-current-attr "style"))
         (cond ((re-search-backward auto-complete-nxml-regexp-point-cssprop nil t)
@@ -302,13 +343,15 @@
 
 (defun auto-complete-nxml-get-tag-value-candidates-by-myself ()
   (ignore-errors
-    (when (not (auto-complete-nxml-point-inside-tag-p))
+    (when (and (auto-complete-nxml-start-completion-p)
+               (not (auto-complete-nxml-point-inside-tag-p)))
       (auto-complete-nxml-update-tag-value-words)
       (auto-complete-nxml-get-project-tag-value-words))))
 
 (defun auto-complete-nxml-get-tag-value-candidates-by-nxml ()
   (ignore-errors
-    (when (not (auto-complete-nxml-point-inside-tag-p))
+    (when (and (auto-complete-nxml-start-completion-p)
+               (not (auto-complete-nxml-point-inside-tag-p)))
       (rng-match-save
         (rng-set-state-after)
         (rng-match-possible-value-strings)))))
@@ -336,31 +379,33 @@
 (defun auto-complete-nxml-get-attr-value-candidates ()
   (ignore-errors
     (or (auto-complete-nxml-get-candidates)
-        (progn (auto-complete-nxml-update-current-attr)
-               (let* ((attrnm auto-complete-nxml-buffer-current-attr))
-                 (when (and (not (string= attrnm ""))
-                            (not (string= attrnm "style"))
-                            (not (string= attrnm "id")))
-                   (auto-complete-nxml-update-attr-words)
-                   (gethash attrnm (auto-complete-nxml-get-project-attr-words-hash))))))))
+        (when (auto-complete-nxml-start-completion-p)
+          (auto-complete-nxml-update-current-attr)
+          (let ((attrnm auto-complete-nxml-buffer-current-attr))
+            (when (and (not (string= attrnm ""))
+                       (not (string= attrnm "style"))
+                       (not (string= attrnm "id")))
+              (auto-complete-nxml-update-attr-words)
+              (gethash attrnm (auto-complete-nxml-get-project-attr-words-hash))))))))
 
 (defvar auto-complete-nxml-candidates nil)
 (defun auto-complete-nxml-get-candidates ()
-  (let* ((auto-complete-nxml-candidates))
-    (flet ((rng-complete-before-point (start table prompt &optional predicate hist)
-                                      (let* ((inputw (buffer-substring-no-properties start (point))))
-                                        (setq auto-complete-nxml-candidates
-                                              (cond ((functionp table)
-                                                     (funcall table inputw nil t))
-                                                    ((listp table)
-                                                     (loop for e in table
-                                                           collect (car e)))))
-                                        nil)))
-      (ignore-errors (rng-complete))
-      (loop with h = (make-hash-table :test 'equal)
-            for c in auto-complete-nxml-candidates
-            if (not (gethash c h))
-            collect (puthash c c h)))))
+  (when (auto-complete-nxml-start-completion-p)
+    (let ((auto-complete-nxml-candidates))
+      (flet ((rng-complete-before-point (start table prompt &optional predicate hist)
+                                        (let ((inputw (buffer-substring-no-properties start (point))))
+                                          (setq auto-complete-nxml-candidates
+                                                (cond ((functionp table)
+                                                       (funcall table inputw nil t))
+                                                      ((listp table)
+                                                       (loop for e in table
+                                                             collect (car e)))))
+                                          nil)))
+        (ignore-errors (rng-complete))
+        (loop with h = (make-hash-table :test 'equal)
+              for c in auto-complete-nxml-candidates
+              if (not (gethash c h))
+              collect (puthash c c h))))))
 
 (defun auto-complete-nxml-expand-tag ()
   (let* ((currpt (point))
@@ -555,7 +600,8 @@
                   (delete-char 1))
                 (insert "\"")
                 (backward-char)
-                (auto-complete)))))
+                (when auto-complete-nxml-automatic-p
+                  (auto-complete))))))
 
 (defvar ac-source-nxml-attr-value
   '((candidates . auto-complete-nxml-get-attr-value-candidates)
@@ -576,7 +622,8 @@
     (limit . 500)
     (action . (lambda ()
                 (insert ": ")
-                (auto-complete '(ac-source-nxml-css-property))))))
+                (when auto-complete-nxml-automatic-p
+                  (auto-complete '(ac-source-nxml-css-property)))))))
 
 (defvar ac-source-nxml-css-property
   '((candidates . auto-complete-nxml-get-css-candidates)
@@ -635,11 +682,15 @@
                (auto-complete-nxml-update-attr-words projid)))))
 
 (defun auto-complete-nxml-setup ()
-  (local-set-key (kbd "SPC") 'auto-complete-nxml-insert-with-ac-trigger-command)
+  ;; Key binding
+  (local-set-key (kbd "SPC") 'auto-complete-nxml-ac-start-with-insert)
   (when (and (stringp auto-complete-nxml-popup-help-key)
              (not (string= auto-complete-nxml-popup-help-key "")))
-    (local-set-key (read-kbd-macro auto-complete-nxml-popup-help-key)
-                   'auto-complete-nxml-popup-help))
+    (local-set-key (read-kbd-macro auto-complete-nxml-popup-help-key) 'auto-complete-nxml-popup-help))
+  (when (and (stringp auto-complete-nxml-toggle-automatic-key)
+             (not (string= auto-complete-nxml-toggle-automatic-key "")))
+    (local-set-key (read-kbd-macro auto-complete-nxml-toggle-automatic-key) 'auto-complete-nxml-toggle-automatic))
+  ;; Add auto-complete source
   (setq ac-sources '(ac-source-nxml-tag
                      ac-source-nxml-attr
                      ac-source-nxml-attr-value
@@ -647,19 +698,24 @@
                      ac-source-nxml-css-property
                      ac-source-nxml-tag-value-by-nxml
                      ac-source-nxml-tag-value-by-myself))
+  ;; Add mode enable auto-complete
   (add-to-list 'ac-modes 'nxml-mode)
-  (auto-complete-mode)
+  ;; Add trigger of auto-complete
+  (add-to-list 'ac-trigger-commands 'auto-complete-nxml-ac-start-with-insert)
+  (auto-complete-mode t)
   (auto-complete-nxml-init-project))
 
 (add-hook 'nxml-mode-hook 'auto-complete-nxml-setup t)
 
 
-(defun auto-complete-nxml-insert-with-ac-trigger-command (n)
+(defun auto-complete-nxml-ac-start-with-insert (n)
   (interactive "p")
   (self-insert-command n)
-  (auto-complete-1 :triggered 'trigger-key))
+  (when auto-complete-nxml-automatic-p
+    (auto-complete-1 :triggered 'trigger-key)))
 
 (defun auto-complete-nxml-popup-help ()
+  "Popup help about something at point."
   (interactive)
   (let* ((ctx (auto-complete-nxml-get-current-context-symbol)))
     (case ctx
@@ -669,6 +725,18 @@
       (attr (popup-tip (auto-complete-nxml-get-document-selected auto-complete-nxml-buffer-current-attr
                                                                  auto-complete-nxml-attribute-document-hash
                                                                  "ATTRIBUTE"))))))
+
+(defun auto-complete-nxml-toggle-automatic ()
+  "Switch value of `auto-complete-nxml-automatic-p'."
+  (interactive)
+  (setq auto-complete-nxml-automatic-p (not auto-complete-nxml-automatic-p))
+  (if auto-complete-nxml-automatic-p
+      (message "Enabled auto-complete-nxml to be automatic.")
+    (message "Disabled auto-complete-nxml to be automatic.")))
+
+
+;; For compatibility
+(defalias 'auto-complete-nxml-insert-with-ac-trigger-command 'auto-complete-nxml-ac-start-with-insert)
 
 
 (provide 'auto-complete-nxml)

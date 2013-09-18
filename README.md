@@ -81,7 +81,17 @@ If you select "xmlns" ...
 
 When complete element and attribute, popup help about them beside displayed candidates.  
 And when you keystroke the bound key for popup help, popup help about pointed.  
-Abount binding the key for popup help, see Configure section below.
+Abount binding the key for popup help, see Configuration section below.
+
+### Toggle on/off automatic completion
+
+In default, completion is started automatically.  
+But, you can disable it temporarily or constantly by the following way.  
+
+* For disable constantly, eval `(setq auto-complete-nxml-automatic-p nil)`
+* For disable/enable while editing, M-x `auto-complete-nxml-toggle-automatic`
+
+About keybind of `auto-complete-nxml-toggle-automatic`, see Configuration section below.
 
 
 Install
@@ -108,14 +118,20 @@ You can install by the following way.
 download "auto-complete-nxml.el" manually and put it in your load-path.
 
 
-Configure
-=========
+Configuration
+=============
 
 ```lisp
 (require 'auto-complete-nxml)
 
-;; for popup help at point
+;; Keystroke for popup help about something at point.
 (setq auto-complete-nxml-popup-help-key "C-:")
+
+;; Keystroke for toggle on/off automatic completion.
+(setq auto-complete-nxml-toggle-automatic-key "C-c C-t")
+
+;; If you want to start completion manually from the beginning
+(setq auto-complete-nxml-automatic-p nil)
 ```
 
 
@@ -126,5 +142,5 @@ Tested On
 * auto-complete.el ... Version 1.4
 
 
-Enjoy!!!
+**Enjoy!!!**
 
