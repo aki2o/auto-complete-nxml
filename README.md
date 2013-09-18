@@ -89,9 +89,11 @@ In default, completion is started automatically.
 But, you can disable it temporarily or constantly by the following way.  
 
 * For disable constantly, eval `(setq auto-complete-nxml-automatic-p nil)`
-* For disable/enable while editing, M-x `auto-complete-nxml-toggle-automatic`
+* For toggle disable/enable while editing, M-x `auto-complete-nxml-toggle-automatic`
 
-About keybind of `auto-complete-nxml-toggle-automatic`, see Configuration section below.
+About keybind of `auto-complete-nxml-toggle-automatic`, see Configuration section below.  
+
+**Note:** For start completion manually, use `ac-trigger-key`.  
 
 
 Install
