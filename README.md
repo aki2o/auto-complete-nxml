@@ -16,19 +16,19 @@ So, start completion automatically according to the context as much as possible.
 
 When you are on nXML-mode, keystroke "<". Then ...
 
-![Demo1](demo1.png)
+![Demo1](image/demo1.png)
 
 Subsequently, if you select "table" ...
 
-![Demo2](demo2.png)
+![Demo2](image/demo2.png)
 
 Subsequently, if you select "style" ...
 
-![Demo3](demo3.png)
+![Demo3](image/demo3.png)
 
 Subsequently, if you select "font-size" ...
 
-![Demo4](demo4.png)
+![Demo4](image/demo4.png)
 
 ### CSS property and its value are available as the candidate
 
@@ -44,7 +44,7 @@ But their definition exists in the used schema of RELAX NG and XML Schema.
 So, when you are on the content of the element, do completion using them.  
 If it is not selective, do completion using the words in the nXML-mode buffers that you opened.
 
-![Demo5](demo_content.png)
+![Demo5](image/demo_content.png)
 
 ### Completion of word using anything-project.el
 
@@ -71,11 +71,11 @@ In this case, you have to know which available namespace is.
 Then, it is too much trouble.  
 So, when complete default namespace, complete all available namespaces automatically.
 
-![Demo6](demo_xmlns1.png)
+![Demo6](image/demo_xmlns1.png)
 
 If you select "xmlns" ...
 
-![Demo7](demo_xmlns2.png)
+![Demo7](image/demo_xmlns2.png)
 
 ### Popup help of element and attribute
 
