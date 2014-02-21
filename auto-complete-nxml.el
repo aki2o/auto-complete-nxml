@@ -6,7 +6,7 @@
 ;; Keywords: completion, html, xml
 ;; URL: https://github.com/aki2o/auto-complete-nxml
 ;; Package-Requires: ((auto-complete "1.4"))
-;; Version: 0.4.0
+;; Version: 0.5.0
 
 ;; This program is free software; you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by
@@ -94,6 +94,7 @@
 (require 'auto-complete-config)
 (require 'anything-project nil t)
 (require 'thingatpt)
+(require 'pos-tip nil t)
 
 
 (defgroup auto-complete-nxml nil
@@ -717,14 +718,18 @@
 (defun auto-complete-nxml-popup-help ()
   "Popup help about something at point."
   (interactive)
-  (let* ((ctx (auto-complete-nxml-get-current-context-symbol)))
-    (case ctx
-      (tag (popup-tip (auto-complete-nxml-get-document-selected auto-complete-nxml-buffer-current-tag
+  (let* ((ctx (auto-complete-nxml-get-current-context-symbol))
+         (doc (case ctx
+                (tag  (auto-complete-nxml-get-document-selected auto-complete-nxml-buffer-current-tag
                                                                 auto-complete-nxml-element-document-hash
-                                                                "ELEMENT")))
-      (attr (popup-tip (auto-complete-nxml-get-document-selected auto-complete-nxml-buffer-current-attr
-                                                                 auto-complete-nxml-attribute-document-hash
-                                                                 "ATTRIBUTE"))))))
+                                                                "ELEMENT"))
+                (attr (auto-complete-nxml-get-document-selected auto-complete-nxml-buffer-current-attr
+                                                                auto-complete-nxml-attribute-document-hash
+                                                                "ATTRIBUTE")))))
+    (if (and (functionp 'ac-quick-help-use-pos-tip-p)
+             (ac-quick-help-use-pos-tip-p))
+        (pos-tip-show doc 'popup-tip-face nil nil 300 popup-tip-max-width)
+      (popup-tip doc))))
 
 (defun auto-complete-nxml-toggle-automatic ()
   "Switch value of `auto-complete-nxml-automatic-p'."
